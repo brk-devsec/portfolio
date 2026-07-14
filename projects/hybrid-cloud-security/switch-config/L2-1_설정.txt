@@ -1,0 +1,106 @@
+!=========================================
+! L2-1 스위치 (CISCO C2960) — 좌측
+! 관리 IP 192.168.2.252 / VLAN 10·20
+!=========================================
+
+!=========================================
+! 기본
+!=========================================
+enable
+configure terminal
+hostname L2-1
+
+!=========================================
+! VLAN 생성
+!=========================================
+vlan 10
+ name VLAN10
+ exit
+vlan 20
+ name VLAN20
+ exit
+
+!=========================================
+! 포트 할당 (fa1~12 VLAN10 / fa13~20 VLAN20)
+!=========================================
+interface range fa0/1-12
+ switchport mode access
+ switchport access vlan 10
+ exit
+interface range fa0/13-20
+ switchport mode access
+ switchport access vlan 20
+ exit
+
+!=========================================
+! 트렁크 (L3 업링크, VLAN 10·20)
+!=========================================
+interface fa0/24
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20
+ exit
+
+!=========================================
+! 관리 IP + 기본 게이트웨이
+!=========================================
+interface vlan 20
+ ip address 192.168.2.252 255.255.255.0
+ no shutdown
+ exit
+ip default-gateway 192.168.2.254
+
+!=========================================
+! NTP (time.bora.net)
+!=========================================
+ntp server 203.248.240.140
+
+!=========================================
+! Syslog (LOG 서버 192.168.3.4)
+!=========================================
+logging 192.168.3.4
+logging trap informational
+service timestamps log datetime
+
+
+!#########################################
+!#  보안 설정
+!#########################################
+
+!=========================================
+! [보안] enable 비밀번호
+!=========================================
+enable password 1234
+
+!=========================================
+! [보안] 비인가자 접근 금지 배너
+!=========================================
+banner motd C Unauthorized personnel prohibited!!! C
+
+!=========================================
+! [보안] BPDU Guard — 사용자 PC 포트
+!  사용자 포트에 스위치/허브 연결로 STP 끼어드는 것 차단
+!=========================================
+interface range fa0/1-20
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ exit
+
+!=========================================
+! [보안] SSH 원격관리 (telnet 차단)
+!  계정 admin / 비번 1234
+!=========================================
+ip domain-name team601.local
+username admin privilege 15 secret 1234
+ip ssh version 2
+crypto key generate rsa
+! → "How many bits in the modulus" 물으면 1024 입력
+line vty 0 4
+ transport input ssh
+ login local
+ exit
+
+!=========================================
+! 저장
+!=========================================
+end
+copy running-config startup-config

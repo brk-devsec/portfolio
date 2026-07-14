@@ -1,0 +1,108 @@
+!=========================================
+! L3 스위치 (PIOLINK TiFRONT G24)
+! 라우팅 + 포트 미러링 + ACL
+!=========================================
+
+enable
+configure terminal
+
+!=========================================
+! VLAN SVI (각 VLAN 게이트웨이 IP)
+!=========================================
+interface vlan10
+ ip address 192.168.1.254/24
+interface vlan20
+ ip address 192.168.2.254/24
+interface vlan30
+ ip address 192.168.3.1/29
+interface vlan40
+ ip address 192.168.4.1/30
+interface vlan50
+ ip address 192.168.11.2/30
+
+!=========================================
+! VLAN 이름
+!=========================================
+vlan 10 name VLAN10
+vlan 20 name VLAN20
+vlan 30 name VLAN30
+vlan 40 name VLAN40
+vlan 50 name VLAN50
+
+!=========================================
+! 인터페이스 (ge1/ge2 L2트렁크, ge13 Analyse, ge24 방화벽)
+!=========================================
+interface ge1
+ switchport mode trunk
+ switchport trunk allowed vlan add 10,20
+ no shutdown
+ exit
+interface ge2
+ switchport mode trunk
+ switchport trunk allowed vlan add 10,20,30
+ no shutdown
+ exit
+interface ge13
+ switchport mode access
+ switchport access vlan 40
+ no shutdown
+ exit
+interface ge24
+ switchport mode access
+ switchport access vlan 50
+ no shutdown
+ exit
+
+!=========================================
+! 기본 경로 (외부 -> 방화벽 ETH2)
+!=========================================
+ip route 0.0.0.0 0.0.0.0 192.168.11.1
+
+!=========================================
+! 포트 미러링 (목적지 ge13 Analyse, 소스 ge1/ge2/ge24)
+!=========================================
+mirror ge13 mirrored ge1 both
+mirror ge13 mirrored ge2 both
+mirror ge13 mirrored ge24 both
+
+!=========================================
+! NTP (time.bora.net)
+!=========================================
+ntp server 203.248.240.140
+ntp enable
+timezone kst
+
+
+!#########################################
+!#  보안 설정
+!#########################################
+
+!=========================================
+! [보안] 비인가자 접근 금지 배너
+!=========================================
+banner login & Unauthorized personnel prohibited!! &
+
+!=========================================
+! [보안] Syslog (LOG 서버 192.168.3.4)
+!=========================================
+logging host 192.168.3.4 default notice
+
+!=========================================
+! [보안] ACL - 내부 VLAN 간 서버팜 접근 제어
+!  1,2) L2 스위치 -> LOG 서버 syslog 허용
+!  3)   일반직원 VLAN20 -> 서버팜 차단
+!  4)   보안담당자 VLAN10 -> 서버팜 허용
+!  5)   그 외 전부 허용
+!=========================================
+access-list 100 1 permit any 192.168.2.252/32 192.168.3.4/32
+access-list 100 2 permit any 192.168.2.253/32 192.168.3.4/32
+access-list 100 deny any 192.168.2.0/24 192.168.3.0/29
+access-list 100 permit any 192.168.1.0/24 192.168.3.0/29
+access-list 100 permit any any any
+access-list 100 interface vlan20
+
+!=========================================
+! 저장
+!=========================================
+end
+write memory

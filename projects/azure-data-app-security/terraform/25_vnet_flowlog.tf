@@ -1,0 +1,95 @@
+# =========================================================
+#  18_vnet_flowlog.tf
+#  VNet Flow Log + Traffic Analytics
+#  ※ NSG Flow Log는 2025-06-30 신규 생성 중단 → VNet Flow Log로 대체
+#  - 네트워크 레벨 로그 수집 (포트 스캔, 횡적 이동 탐지)
+#  - Phase 1 syslog로는 못 잡던 트래픽을 Log Analytics로 수집
+#
+#  [담당] Sentinel/NSG 통합 담당
+#  [의존] azurerm_virtual_network.main
+#         azurerm_log_analytics_workspace.main
+#
+#  ※ Network Watcher는 KoreaCentral에 자동 생성된
+#     'NetworkWatcher_koreacentral'(NetworkWatcherRG)를 data로 참조.
+#     만약 환경에 없다면, 아래 data 블록을 주석 처리하고
+#     resource 블록(파일 하단 주석)을 살릴 것.
+# =========================================================
+
+# ---------------------------------------------------------
+# random suffix (Storage 글로벌 유니크용)
+#   ※ random provider가 00_provider.tf에 선언돼 있어야 함.
+# ---------------------------------------------------------
+resource "random_string" "flowlog_sa" {
+  length  = 6
+  upper   = false
+  special = false
+}
+
+# ---------------------------------------------------------
+# 기존 Network Watcher 참조 (자동 생성된 것 사용)
+#   - 이름/RG가 환경에 따라 다르면 아래 두 값을 맞게 수정.
+# ---------------------------------------------------------
+data "azurerm_network_watcher" "main" {
+  name                = "NetworkWatcher_koreacentral"
+  resource_group_name = "NetworkWatcherRG"
+}
+
+# ---------------------------------------------------------
+# Flow Log 전용 Storage Account
+# ---------------------------------------------------------
+resource "azurerm_storage_account" "flowlog" {
+  name                     = "${var.prefix}flow${random_string.flowlog_sa.result}"
+  resource_group_name      = azurerm_resource_group.rg.name
+  location                 = var.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  tags                     = var.tags
+
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
+}
+
+# ---------------------------------------------------------
+# NSG Flow Log + Traffic Analytics
+#   - main VNet의 모든 트래픽을 기록
+#   - traffic_analytics로 Log Analytics(team602-law)에 연동
+#     → KQL의 AzureNetworkAnalytics_CL 테이블로 조회 가능
+# ---------------------------------------------------------
+resource "azurerm_network_watcher_flow_log" "vnet" {
+  name                 = "${var.prefix}-vnet-flowlog"
+  network_watcher_name = data.azurerm_network_watcher.main.name
+  resource_group_name  = data.azurerm_network_watcher.main.resource_group_name
+  location             = var.location
+  tags                 = var.tags
+
+  target_resource_id = azurerm_virtual_network.main.id
+  storage_account_id = azurerm_storage_account.flowlog.id
+  enabled            = true
+  version            = 2
+
+  retention_policy {
+    enabled = true
+    days    = 7
+  }
+
+  traffic_analytics {
+    enabled               = true
+    workspace_id          = azurerm_log_analytics_workspace.main.workspace_id
+    workspace_region      = var.location
+    workspace_resource_id = azurerm_log_analytics_workspace.main.id
+    interval_in_minutes   = 10
+  }
+}
+
+# =========================================================
+#  [대안] 환경에 Network Watcher가 없을 경우
+#   위 data 블록을 주석 처리하고 아래를 사용.
+#   그리고 위 flow_log의 network_watcher_name/resource_group_name을
+#   azurerm_network_watcher.main.name / .resource_group_name 으로 변경.
+# =========================================================
+# resource "azurerm_network_watcher" "main" {
+#   name                = "${var.prefix}-nw"
+#   location            = var.location
+#   resource_group_name = azurerm_resource_group.rg.name
+#   tags                = var.tags
+# }
