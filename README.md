@@ -20,6 +20,11 @@
 
 ## 📚 Study
 
-강의 및 학습 내용 정리입니다. → [study/](study)
+강의 및 학습 내용 정리입니다. → [study/](./study/)
 
-> 현재 Notion에서 정리 중이며, 완료되는 대로 순차적으로 이관 예정입니다.
+| 구분 | 설명 |
+|---|---|
+| [Azure Study](./study/azure-study/) | AZ-700 대비 Azure 네트워크·보안 실습 기록 |
+| [Lecture Notes](./study/lecture-notes/) | 네트워크 강의 정리 (Ch.1~22) |
+
+> 현재 Notion에 정리 중, 완료되는 대로 순차적으로 이관 예정입니다.
