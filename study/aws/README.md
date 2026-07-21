@@ -1,1 +1,5 @@
-| [AWS Study](aws/) | AWS 공부 |
+# ☁️ AWS Study
+
+AWS 학습 기록을 정리한 공간입니다.
+
+> 준비 중입니다.
